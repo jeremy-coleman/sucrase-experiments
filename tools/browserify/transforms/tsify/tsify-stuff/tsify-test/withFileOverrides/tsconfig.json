@@ -1,8 +1,0 @@
-{
-	"compilerOptions": {
-		"noEmitOnError": false
-	},
-	"exclude": ["bar-exam.ts"],
-	"files": ["foo.ts", "bar.ts"],
-	"include": ["bar-*.ts"]
-}

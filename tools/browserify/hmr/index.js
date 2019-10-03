@@ -15,7 +15,7 @@ const {through} = require('../streams')
 const {convert} = require('../combine-source-map.js');
 const {SourceMapGenerator , SourceNode , SourceMapConsumer } = require('../source-map.js')
 
-
+var readManagerTemplate = _.once(() => readFile(path.join(__dirname, 'hmr-manager-template.js'), 'utf8'));
 
 const syncQueues = new WeakMap();
 function noop() {}
@@ -66,7 +66,7 @@ function hashStr(str) {
   return hasher.digest('base64').slice(0, 20);
 }
 
-var readManagerTemplate = _.once(() => readFile(path.join(__dirname, 'hmr-manager-template.js'), 'utf8'));
+
 var validUpdateModes = ['websocket', 'ajax', 'fs', 'none'];
 var updateModesNeedingUrl = ['ajax'];
 
@@ -98,7 +98,7 @@ function boolOpt(value) {
   return Boolean(value && value !== 'false');
 }
 
-module.exports = function(bundle, opts) {
+function hmr(bundle, opts) {
   if (!opts) opts = {};
   var updateMode = readOpt(opts, 'mode', 'm', 'websocket');
 
@@ -140,7 +140,8 @@ module.exports = function(bundle, opts) {
   var sioPath = null;
 
   if (_.includes(supportModes, 'websocket')) {
-    sioPath = './'+path.relative(basedir, require.resolve('socket.io-client'));
+    //sioPath = './'+path.relative(basedir, require.resolve('socket.io-client'));
+    sioPath = './'+path.relative(basedir, require.resolve('./socketio/socket.io.slim.js'));
   }
 
   var useLocalSocketServer = !noServe && _.includes(supportModes, 'websocket');
@@ -165,16 +166,14 @@ module.exports = function(bundle, opts) {
     // Start a new process with an extra socket opened to it.
     // See https://github.com/nodejs/node-v0.x-archive/issues/5727 for a
     // description. It's faster than using `process.send`.
-    server = cproc.spawn(
-      process.argv[0],
-      [__dirname+'/socket-server.js'],
-      { stdio: ['inherit','inherit','inherit','pipe'] }
-    );
+    server = cproc.spawn(process.argv[0],[__dirname+'/socket-server.js'],{ stdio: ['inherit','inherit','inherit','pipe'] });
+    
     var childReadline = readline.createInterface({
       input: server.stdio[3],
       output: process.stdout,
       terminal: false
     });
+
     childReadline.on('line',(line) => {
       var msg = JSON.parse(line);
       if (msg.type === 'confirmNewModuleData') {
@@ -184,6 +183,7 @@ module.exports = function(bundle, opts) {
         console.warn('[HMR builder] Unknown message type from server:', msg.type);
       }
     });
+    
     server.stdio[3].on('finish', () => {
       em.emit('error', new Error("Browserify-HMR lost connection to socket server"));
     });
@@ -357,7 +357,9 @@ module.exports = function(bundle, opts) {
 
         var hash = moduleMeta[fileKey(row.file)].hash = hashStr(row.source);
         var originalSource = row.source;
-        var isNew, thunk;
+        var isNew
+        var thunk;
+        
         if (has(transformCache, row.file) && transformCache[row.file].hash === hash) {
           isNew = false;
           row.source = transformCache[row.file].transformedSource;
@@ -433,29 +435,6 @@ module.exports = function(bundle, opts) {
             self.push(thunk());
         });
 
-        // const {template} = require('./t2')
-        
-        // console.log('modulemeta', moduleMeta)
-        // console.log('oe', originalEntries)
-        // console.log('up', updateUrl)
-        // console.log('s', supportModes)
-        // console.log('ig', ignoreUnaccepted)
-        // console.log('upd-cache-bust', updateCacheBust)
-        // console.log('bkey', bundleKey)
-
-        // managerRow.source = template({
-        //   moduleMeta: JSON.stringify(moduleMeta),
-        //   originalEntries: JSON.stringify(originalEntries),
-        //   updateUrl: JSON.stringify(updateUrl),
-        //   updateMode: JSON.stringify(updateMode),
-        //   supportModes: JSON.stringify(supportModes),
-        //   ignoreUnaccepted: JSON.stringify(ignoreUnaccepted),
-        //   updateCacheBust: JSON.stringify(updateCacheBust),
-        //   bundleKey: JSON.stringify(bundleKey),
-        //   sioPath: require.resolve("socket.io-client/lib/index.js"), //JSON.stringify(sioPath),
-        //   incPath: __dirname + "/inc/index.js"
-        // })
-
         managerRow.source = mgrTemplate
           .replace('null/*!^^moduleMeta*/', _.constant(JSON.stringify(moduleMeta)))
           .replace('null/*!^^originalEntries*/', _.constant(JSON.stringify(originalEntries)))
@@ -480,3 +459,6 @@ module.exports = function(bundle, opts) {
   return em;
 
 };
+
+
+module.exports = hmr

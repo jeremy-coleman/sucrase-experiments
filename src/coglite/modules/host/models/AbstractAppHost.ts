@@ -3,7 +3,7 @@ import { toPromise } from "coglite/shared/models/SyncUtils"
 import { IAppHost, IAppIcon, IAppLauncher, IRequest, IRouter } from "coglite/types"
 //import { joinPaths } from "coglite/util";
 import { action, computed, observable } from "mobx"
-import { stringify } from "qs"
+import { stringify } from "coglite/shared/router"
 import { Supplier } from "coglite/shared/models/Supplier"
 
 export const bindHostProp = (host: IAppHost, key = "panelAppRequestSupplier") => {
